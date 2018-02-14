@@ -23,6 +23,7 @@ import (
 
 const (
 	appNamespace = "SIGNING_PROXY"
+	version      = "1.0.0"
 )
 
 var (
