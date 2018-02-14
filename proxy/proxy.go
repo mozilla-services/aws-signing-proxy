@@ -42,17 +42,20 @@ func (proxy Handler) newProxiedRequest(r *http.Request) (*http.Request, error) {
 }
 
 // satisfies http.Handler
+// per https://golang.org/pkg/net/http/#Handler
+// the server will recover panic() and log a stack trace
 func (proxy Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	defer r.Body.Close()
 
 	proxiedReq, err := proxy.newProxiedRequest(r)
 	if err != nil {
 		http.Error(w, "Internal Server Error", 500)
-		return
+		panic(err)
 	}
 
 	resp, err := proxy.client.Do(proxiedReq)
 	if err != nil {
+		http.Error(w, "Internal Server Error", 500)
 		panic(err)
 	}
 	defer resp.Body.Close()
@@ -67,6 +70,7 @@ func (proxy Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(resp.StatusCode)
 	_, err = io.Copy(w, resp.Body)
 	if err != nil {
+		http.Error(w, "Internal Server Error", 500)
 		panic(err)
 	}
 }

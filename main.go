@@ -12,8 +12,8 @@ import (
 
 	"crypto/tls"
 	"crypto/x509"
-	"fmt"
 	"io/ioutil"
+	"log"
 	"net/http"
 	"net/url"
 	"time"
@@ -37,7 +37,7 @@ func init() {
 	// cacert.pem is a runtime dependency!
 	bs, err := ioutil.ReadFile("cacert.pem")
 	if err != nil {
-		panic(err)
+		log.Fatal(err.Error())
 	}
 
 	pool = x509.NewCertPool()
@@ -54,14 +54,17 @@ func init() {
 
 func loggingMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		fmt.Println(r.RequestURI)
+		log.Println(r.Method + " " + r.RequestURI)
 		next.ServeHTTP(w, r)
 	})
 }
 
 func statsdMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		statsdClient.Incr("requests", []string{}, 1.0)
+		err := statsdClient.Incr("requests", []string{}, 1.0)
+		if err != nil {
+			log.Println(err.Error())
+		}
 		next.ServeHTTP(w, r)
 	})
 }
@@ -69,7 +72,7 @@ func statsdMiddleware(next http.Handler) http.Handler {
 func getEC2Tags(metadata *ec2metadata.EC2Metadata) []string {
 	region, err := metadata.Region()
 	if err != nil {
-		panic(err)
+		log.Println(err.Error())
 	}
 	return []string{
 		"region:" + region,
@@ -78,27 +81,26 @@ func getEC2Tags(metadata *ec2metadata.EC2Metadata) []string {
 
 func main() {
 	config := struct {
-		// SIGNING_PROXY_LOG_REQUESTS
-		LogRequests bool `default:"true" split_words:"true"`
-		Statsd      bool `default:"true"`
-		// SIGNING_PROXY_STATSD_LISTEN
-		StatsdListen string `default:"127.0.0.1:8125" split_words:"true"`
-		Listen       string `default:"localhost:8000"`
-		Service      string `default:"s3"`
-		Region       string `default:"us-east-1"`
-		Destination  string `default:"https://s3.amazonaws.com"`
+		LogRequests     bool   `default:"true" split_words:"true"`
+		Statsd          bool   `default:"true"`
+		StatsdListen    string `default:"127.0.0.1:8125" split_words:"true"`
+		StatsdNamespace string `default:""`
+		Listen          string `default:"localhost:8000"`
+		Service         string `default:"s3"`
+		Region          string `default:"us-east-1"`
+		Destination     string `default:"https://s3.amazonaws.com"`
 	}{}
 
 	// load envconfig
 	err := envconfig.Process(appNamespace, &config)
 	if err != nil {
-		panic(err)
+		log.Fatal(err.Error())
 	}
 
 	// *url.URL for convenience
 	destinationURL, err := url.Parse(config.Destination)
 	if err != nil {
-		panic(err)
+		log.Fatal("Could not parse destination URL: " + err.Error())
 	}
 
 	// initialize AWS session
@@ -121,7 +123,7 @@ func main() {
 		config.Region,
 	)
 	if err != nil {
-		panic(err)
+		log.Fatal(err.Error())
 	}
 
 	// create proxy using signing http client
@@ -130,7 +132,7 @@ func main() {
 		signingClient,
 	)
 	if err != nil {
-		panic(err)
+		log.Fatal(err.Error())
 	}
 
 	var handler http.Handler
@@ -145,10 +147,14 @@ func main() {
 	if config.Statsd {
 		statsdClient, err := statsd.New(config.StatsdListen)
 		if err != nil {
-			panic(err)
+			log.Fatal(err.Error())
 		}
-		// prepends metrics
-		statsdClient.Namespace = appNamespace + "."
+		// prepended to metrics
+		if config.StatsdNamespace == "" {
+			statsdClient.Namespace = appNamespace + "."
+		} else {
+			statsdClient.Namespace = config.StatsdNamespace + "."
+		}
 		statsdClient.Tags = append(statsdClient.Tags, ec2tags...)
 		handler = statsdMiddleware(handler)
 	}
@@ -162,5 +168,8 @@ func main() {
 		Handler:      handler,
 	}
 
-	fmt.Println(srv.ListenAndServe())
+	err = srv.ListenAndServe()
+	if err != nil {
+		log.Fatal(err.Error())
+	}
 }
