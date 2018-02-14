@@ -2,24 +2,31 @@ package main
 
 import (
     "github.com/aws/aws-sdk-go/aws"
+    "github.com/aws/aws-sdk-go/aws/ec2metadata"
     "github.com/aws/aws-sdk-go/aws/session"
     "github.com/aws/aws-sdk-go/aws/signer/v4"
 
     "github.com/sha1sum/aws_signing_client"
     "github.com/kelseyhightower/envconfig"
+    "github.com/DataDog/datadog-go/statsd"
 
     "crypto/x509"
     "crypto/tls"
-
     "fmt"
-    "io"
     "io/ioutil"
     "net/url"
     "net/http"
     "time"
+
+    "github.com/milescrabill/aws-signing-proxy/proxy"
+)
+
+const (
+    appNamespace = "SIGNING_PROXY"
 )
 
 var (
+    statsdClient *statsd.Client
     httpClient *http.Client
     pool *x509.CertPool
 )
@@ -44,13 +51,6 @@ func init() {
     }
 }
 
-type SigningProxy struct {
-    Destination *url.URL
-    Signer *v4.Signer
-    ServiceName string
-    Region string
-}
-
 func LoggingMiddleware(next http.Handler) http.Handler {
     return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
         fmt.Println(r.RequestURI)
@@ -58,52 +58,20 @@ func LoggingMiddleware(next http.Handler) http.Handler {
     })
 }
 
-// satisfies http.Handler
-func (proxy SigningProxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+func StatsdMiddleware(next http.Handler) http.Handler {
+    return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+        statsdClient.Incr("requests", []string{}, 1.0)
+        next.ServeHTTP(w, r)
+    })
+}
 
-    defer r.Body.Close()
-
-    proxiedURL := *r.URL
-    proxiedURL.Host = proxy.Destination.Host
-    proxiedURL.Scheme = proxy.Destination.Scheme
-
-    proxiedReq, err := http.NewRequest(
-        r.Method,
-        proxiedURL.String(),
-        r.Body,
-    )
-    if err != nil {
-        http.Error(w, "Internal Server Error", 500)
-        return
-    }
-
-    awsClient, err := aws_signing_client.New(
-        proxy.Signer,
-        httpClient,
-        proxy.ServiceName,
-        proxy.Region,
-    )
+func getEC2Tags(metadata *ec2metadata.EC2Metadata) []string {
+    region, err := metadata.Region()
     if err != nil {
         panic(err)
     }
-
-    resp, err := awsClient.Do(proxiedReq)
-    if err != nil {
-        panic(err)
-    }
-    defer resp.Body.Close()
-
-    // add all response headers to request
-    for k, vs := range resp.Header {
-        for _, v := range vs {
-            w.Header().Add(k, v)
-        }
-    }
-
-    w.WriteHeader(resp.StatusCode)
-    _, err = io.Copy(w, resp.Body)
-    if err != nil {
-        panic(err)
+    return []string{
+        "region:" + region,
     }
 }
 
@@ -111,44 +79,81 @@ func main() {
     config := struct {
         // SIGNING_PROXY_LOG_REQUESTS
         LogRequests bool `default:"true" split_words:"true"`
+        Statsd bool `default:"true"`
+        // SIGNING_PROXY_STATSD_LISTEN
+        StatsdListen string `default:"127.0.0.1:8125" split_words:"true"`
         Listen string `default:"localhost:8000"`
         Service string `default:"s3"`
         Region string `default:"us-east-1"`
         Destination string `default:"https://s3.amazonaws.com"`
     }{}
 
-    err := envconfig.Process("SIGNING_PROXY", &config)
+    // load envconfig
+    err := envconfig.Process(appNamespace, &config)
     if err != nil {
         panic(err)
     }
-    fmt.Println(config)
 
+    // *url.URL for convenience
     destinationURL, err := url.Parse(config.Destination)
     if err != nil {
         panic(err)
     }
 
-    sess, err := session.NewSession(&aws.Config{
+    // initialize AWS session
+    sess := session.Must(session.NewSession(&aws.Config{
         Region: aws.String(config.Region),
-    })
-    signer := v4.NewSigner(sess.Config.Credentials)
+    }))
 
-    proxy := SigningProxy{
-        destinationURL,
+    ec2tags := []string{}
+    metadata := ec2metadata.New(sess)
+    if metadata.Available() {
+        ec2tags = getEC2Tags(metadata)
+    }
+
+    // create signing http client
+    signer := v4.NewSigner(sess.Config.Credentials)
+    signingClient, err := aws_signing_client.New(
         signer,
+        httpClient,
         config.Service,
         config.Region,
+    )
+    if err != nil {
+        panic(err)
+    }
+
+    // create proxy using signing http client
+    prxy, err := proxy.New(
+        destinationURL,
+        signingClient,
+    )
+    if err != nil {
+        panic(err)
     }
 
     var handler http.Handler
-    handler = proxy
+    handler = prxy
 
-    // wrap proxy
+    // wrap handler for logging
     if config.LogRequests {
-        handler = LoggingMiddleware(proxy)
+        handler = LoggingMiddleware(handler)
     }
 
-    server := &http.Server{
+    // wrap handler for statsd
+    if config.Statsd {
+        statsdClient, err := statsd.New(config.StatsdListen)
+        if err != nil {
+            panic(err)
+        }
+        // prepends metrics
+        statsdClient.Namespace = appNamespace + "."
+        statsdClient.Tags = append(statsdClient.Tags, ec2tags...)
+        handler = StatsdMiddleware(handler)
+    }
+
+    // sane default timeouts
+    srv := &http.Server{
         Addr: config.Listen,
         ReadTimeout: 5 * time.Second,
         WriteTimeout: 10 * time.Second,
@@ -156,5 +161,5 @@ func main() {
         Handler: handler,
     }
 
-    fmt.Println(server.ListenAndServe())
+    fmt.Println(srv.ListenAndServe())
 }
