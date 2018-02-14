@@ -1,4 +1,4 @@
-[![Go Report Card](https://goreportcard.com/badge/github.com/milescrabill/aws-signing-proxy)](https://goreportcard.com/report/github.com/milescrabill/aws-signing-proxy)
+[![Go Report Card](https://goreportcard.com/badge/github.com/mozilla-services/aws-signing-proxy)](https://goreportcard.com/report/github.com/mozilla-services/aws-signing-proxy)
 
 # aws-signing-proxy
 signs http requests using AWS V4 signer

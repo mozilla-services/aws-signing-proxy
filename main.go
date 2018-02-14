@@ -18,7 +18,7 @@ import (
 	"net/url"
 	"time"
 
-	"github.com/milescrabill/aws-signing-proxy/proxy"
+	"github.com/mozilla-services/aws-signing-proxy/proxy"
 )
 
 const (
