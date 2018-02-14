@@ -6,15 +6,43 @@ import (
     "github.com/aws/aws-sdk-go/aws/signer/v4"
 
     "github.com/sha1sum/aws_signing_client"
-    "github.com/gorilla/mux"
     "github.com/kelseyhightower/envconfig"
+
+    "crypto/x509"
+    "crypto/tls"
 
     "fmt"
     "io"
+    "io/ioutil"
     "net/url"
     "net/http"
     "time"
 )
+
+var (
+    httpClient *http.Client
+    pool *x509.CertPool
+)
+
+// get CA certs for our http.Client
+func init() {
+    // cacert.pem is a runtime dependency!
+    bs, err := ioutil.ReadFile("cacert.pem")
+    if err != nil {
+        panic(err)
+    }
+
+    pool = x509.NewCertPool()
+    pool.AppendCertsFromPEM(bs)
+
+    // default http client with a timeout
+    httpClient = &http.Client{
+        Timeout: time.Second * 10,
+        Transport: &http.Transport{
+            TLSClientConfig: &tls.Config{RootCAs: pool},
+        },
+    }
+}
 
 type SigningProxy struct {
     Destination *url.URL
@@ -51,10 +79,7 @@ func (proxy SigningProxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
     awsClient, err := aws_signing_client.New(
         proxy.Signer,
-        // default http client with a timeout
-        &http.Client{
-            Timeout: time.Second * 10,
-        },
+        httpClient,
         proxy.ServiceName,
         proxy.Region,
     )
@@ -115,11 +140,12 @@ func main() {
         config.Region,
     }
 
-    router := mux.NewRouter()
-    router.Handle("/", proxy)
+    var handler http.Handler
+    handler = proxy
 
+    // wrap proxy
     if config.LogRequests {
-        router.Use(LoggingMiddleware)
+        handler = LoggingMiddleware(proxy)
     }
 
     server := &http.Server{
@@ -127,7 +153,7 @@ func main() {
         ReadTimeout: 5 * time.Second,
         WriteTimeout: 10 * time.Second,
         IdleTimeout: 60 * time.Second,
-        Handler: router,
+        Handler: handler,
     }
 
     fmt.Println(server.ListenAndServe())
