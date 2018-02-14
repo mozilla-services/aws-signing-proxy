@@ -2,6 +2,12 @@
 
 
 [[projects]]
+  name = "github.com/DataDog/datadog-go"
+  packages = ["statsd"]
+  revision = "9487d3a9d3be5bf3cf60b86ae810b97926964515"
+  version = "2.0.0"
+
+[[projects]]
   name = "github.com/aws/aws-sdk-go"
   packages = [
     "aws",
@@ -57,6 +63,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "ecd28afd5159e265c46dcf8ec9433328c79eb2585e5fa2a8485224fca755d501"
+  inputs-digest = "cb723fb73165e065693b418bc89527fc18e3ce4e6ad04de488e7cd7bc5b597ec"
   solver-name = "gps-cdcl"
   solver-version = 1
