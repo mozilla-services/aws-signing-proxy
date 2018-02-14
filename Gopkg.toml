@@ -24,6 +24,10 @@
 #   go-tests = true
 #   unused-packages = true
 
+# minor version pin on AWS SDK
+[[constraint]]
+  name = "github.com/aws/aws-sdk-go"
+  version = "~v1.12.76"
 
 [prune]
   go-tests = true
