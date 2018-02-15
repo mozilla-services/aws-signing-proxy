@@ -159,6 +159,8 @@ func main() {
 		handler = statsdMiddleware(handler)
 	}
 
+    log.Println("starting " + appNamespace)
+
 	// sane default timeouts
 	srv := &http.Server{
 		Addr:         config.Listen,
