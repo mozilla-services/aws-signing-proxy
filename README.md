@@ -7,7 +7,7 @@ signs http requests using AWS V4 signer
 
 Running the signing proxy should be as simple as running a compiled binary or the `main.go` file. You can also run our prebuilt containers: `docker run -p 8000:8000 mozilla/aws-signing-proxy:latest`.
 
-The signing proxy listens on 0.0.0.0 by default, which means that it will be exposed to the world _if you expose that port externally_.
+The signing proxy listens on `0.0.0.0:8000` by default, which means that it will be exposed to the world _if you expose that port externally_.
 
 ### Configuration:
 
