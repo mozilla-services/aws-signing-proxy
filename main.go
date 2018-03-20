@@ -23,7 +23,7 @@ import (
 
 const (
 	appNamespace = "SIGNING_PROXY"
-	version      = "1.0.2"
+	version      = "1.0.3"
 )
 
 var (
@@ -85,7 +85,7 @@ func main() {
 		Statsd          bool   `default:"true"`
 		StatsdListen    string `default:"127.0.0.1:8125" split_words:"true"`
 		StatsdNamespace string `default:""`
-		Listen          string `default:"localhost:8000"`
+		Listen          string `default:"0.0.0.0:8000"`
 		Service         string `default:"s3"`
 		Region          string `default:"us-east-1"`
 		Destination     string `default:"https://s3.amazonaws.com"`
@@ -159,7 +159,7 @@ func main() {
 		handler = statsdMiddleware(handler)
 	}
 
-    log.Println("starting " + appNamespace)
+	log.Println("starting " + appNamespace)
 
 	// sane default timeouts
 	srv := &http.Server{
