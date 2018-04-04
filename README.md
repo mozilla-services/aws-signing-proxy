@@ -11,7 +11,7 @@ The signing proxy listens on `0.0.0.0:8000` by default, which means that it will
 
 ### Configuration:
 
-The signing proxy is configured via environment variables with the prefix `SIGNING_PROXY_`. The [config struct](https://github.com/mozilla-services/aws-signing-proxy/blob/master/main.go#L83-L92) has details on default values and variable types. Implimentation by Kelsey Hightower's [envconfig](github.com/kelseyhightower/envconfig).
+The signing proxy is configured via environment variables with the prefix `SIGNING_PROXY_`. The [config struct](https://github.com/mozilla-services/aws-signing-proxy/blob/master/main.go#L83-L92) has details on default values and variable types. Implementation by Kelsey Hightower's [envconfig](github.com/kelseyhightower/envconfig).
 
 Available environment variables:
 
