@@ -11,39 +11,39 @@ The signing proxy listens on `0.0.0.0:8000` by default, which means that it will
 
 ### Configuration:
 
-The signing proxy is configured via environment variables with the prefix `SIGNING_PROXY_`. The [config struct](https://github.com/mozilla-services/aws-signing-proxy/blob/master/main.go#L83-L92) has details on default values and variable types.
+The signing proxy is configured via environment variables with the prefix `SIGNING_PROXY_`. The [config struct](https://github.com/mozilla-services/aws-signing-proxy/blob/master/main.go#L83-L92) has details on default values and variable types. Implementation by Kelsey Hightower's [envconfig](github.com/kelseyhightower/envconfig).
 
 Available environment variables:
 
-    - LOG_REQUESTS
+    - SIGNING_PROXY_LOG_REQUESTS
         type: bool
         description: enable logging of request method and path
         default: "true"
-    - STATSD
+    - SIGNING_PROXY_STATSD
         type: bool
         description: enable statsd reporting
         default: "true"
-    - STATSD_LISTEN
+    - SIGNING_PROXY_STATSD_LISTEN
         type: string
         description: address to send statsd metrics to
         default: "127.0.0.1:8125"
-    - STATSD_NAMESPACE
+    - SIGNING_PROXY_STATSD_NAMESPACE
         type: string
         description: prefix for statsd metrics. "." is appended as a separator.
         default: "SIGNING_PROXY"
-    - LISTEN
+    - SIGNING_PROXY_LISTEN
         type: string
         description: address for the proxy to listen on
         default: "0.0.0.0:8000"
-    - SERVICE
+    - SIGNING_PROXY_SERVICE
         type: string
         description: aws service to sign requests for
         default: "s3"
-    - REGION
+    - SIGNING_PROXY_REGION
         type: string
         description: aws region to sign requests for
         default: "us-east-1"
-    - DESTINATION
+    - SIGNING_PROXY_DESTINATION
         type: string
         description: valid URL that serves as a template for proxied requests. Scheme and Host are preserved for proxied requests.
         default: "https://s3.amazonaws.com"
