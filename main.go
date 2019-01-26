@@ -14,6 +14,7 @@ import (
 	"crypto/x509"
 	"io/ioutil"
 	"log"
+	"net"
 	"net/http"
 	"net/url"
 	"time"
@@ -43,12 +44,26 @@ func init() {
 	pool = x509.NewCertPool()
 	pool.AppendCertsFromPEM(bs)
 
+	// use default values from DefaultTransport
+	tr := &http.Transport{
+		Proxy: http.ProxyFromEnvironment,
+		DialContext: (&net.Dialer{
+			Timeout:   30 * time.Second,
+			KeepAlive: 30 * time.Second,
+			DualStack: true,
+		}).DialContext,
+		MaxIdleConns:          100,
+		IdleConnTimeout:       90 * time.Second,
+		TLSHandshakeTimeout:   10 * time.Second,
+		ExpectContinueTimeout: 1 * time.Second,
+	}
+
+	tr.TLSClientConfig = &tls.Config{RootCAs: pool}
+
 	// default http client with a timeout
 	httpClient = &http.Client{
-		Timeout: time.Second * 10,
-		Transport: &http.Transport{
-			TLSClientConfig: &tls.Config{RootCAs: pool},
-		},
+		Timeout:   time.Second * 10,
+		Transport: tr,
 	}
 }
 
